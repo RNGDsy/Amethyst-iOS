@@ -2,6 +2,8 @@
 #import "UIKit+hook.h"
 #import "utils.h"
 
+#include <dlfcn.h>
+
 @interface PickViewController : UIViewController
 @property(nonatomic, assign) UITextField *textField;
 @end
@@ -51,7 +53,13 @@
 }
 
 - (BOOL)prefersPopoverPresentation {
-    BOOL hasLiquidGlass = _UISolariumEnabled && _UISolariumEnabled();
+
+    static BOOL (*solariumEnabledFn)(void) = NULL;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        solariumEnabledFn = (BOOL (*)(void))dlsym(RTLD_DEFAULT, "_UISolariumEnabled");
+    });
+    BOOL hasLiquidGlass = solariumEnabledFn && solariumEnabledFn();
     return hasLiquidGlass || NSProcessInfo.processInfo.isMacCatalystApp;
 }
 
