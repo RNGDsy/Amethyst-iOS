@@ -20,6 +20,7 @@
 
 #import <objc/runtime.h>
 #include <sys/time.h>
+#include <dlfcn.h>
 
 #define AUTORESIZE_MASKS UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleLeftMargin | UIViewAutoresizingFlexibleRightMargin
 
@@ -49,7 +50,15 @@ static void *ProgressObserverContext = &ProgressObserverContext;
         [self setNeedsUpdateOfScreenEdgesDeferringSystemGestures];
     }
     UIToolbar *targetToolbar = self.toolbar;
-    BOOL hasLiquidGlass = _UISolariumEnabled && _UISolariumEnabled();
+    BOOL hasLiquidGlass = NO;
+    void *uikitHandle = dlopen("/System/Library/Frameworks/UIKit.framework/UIKit", RTLD_LAZY);
+    if (uikitHandle) {
+        BOOL (*UISolariumEnabled)(void) = (BOOL (*)(void))dlsym(uikitHandle, "_UISolariumEnabled");
+        if (UISolariumEnabled) {
+            hasLiquidGlass = UISolariumEnabled();
+        }
+        dlclose(uikitHandle);
+    }
     
     if(hasLiquidGlass) {
         self.versionTextField = [[PickTextField alloc] initWithFrame:CGRectMake(0, 0, MIN(self.view.frame.size.width,self.view.frame.size.height)*0.8 - 40, 36)];
