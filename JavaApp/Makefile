@@ -11,8 +11,9 @@ TARGETS := $(TARGETS:$(SOURCEDIR)/%=$(OUTPUTDIR)/%.jar)
 
 LWJGL_DIRS := ../../libs/lwjgl-3.3.3 ../../libs/lwjgl-3.4.1
 LWJGL_JARS := $(shell find $(LWJGL_DIRS) -type f -name 'lwjgl*.jar' 2>/dev/null)
+GSON_JARS := $(shell find ../../libs -type f -name 'gson*.jar' 2>/dev/null)
 
-JCFLAGS := -cp "$(subst $() $(),:,$(wildcard $(SOURCEDIR)/*/):$(wildcard ../../libs/*/*.jar))" -XDignore.symbol.file
+JCFLAGS := -cp "$(subst $() $(),:,$(wildcard $(SOURCEDIR)/*/):$(wildcard ../../libs/*/*.jar):$(LWJGL_JARS):$(GSON_JARS))" -XDignore.symbol.file
 
 all: $(TARGETS)
 
