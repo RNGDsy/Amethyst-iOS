@@ -145,7 +145,7 @@ METHOD_CHANGE_PLAT = \
 		fi; \
 	else \
 		vtool -arch arm64 -set-build-version $(1) 1.0 1.0 -replace -output $(2) $(2); \
-	fi \
+	fi
 	
 # Function to package the application
 METHOD_PACKAGE = \
