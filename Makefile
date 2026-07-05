@@ -173,7 +173,7 @@ METHOD_JAVA_UNPACK = \
 			if echo "$$FILE" | grep -qiE '\\.zip$$'; then \
 				unzip "$$FILE" && rm -f "$$FILE"; \
 			elif echo "$$FILE" | grep -qiE '\\.tar\\.xz$$'; then \
-				# leave tar.xz for extraction by tar later
+				# leave tar.xz for extraction by tar later \
 				:; \
 			else \
 				# unknown archive type - attempt to unpack with tar
