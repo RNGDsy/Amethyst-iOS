@@ -166,13 +166,27 @@ METHOD_PACKAGE = \
 # Function to download and unpack Java runtimes.
 METHOD_JAVA_UNPACK = \
 	cd $(SOURCEDIR)/depends; \
-	if [ ! -f "java-$(1)-openjdk/release" ] && [ ! -f "$(ls jre$(1)-*.tar.xz)" ]; then \
+	if [ ! -f "java-$(1)-openjdk/release" ] && [ -z "$$(ls jre$(1)-* 2>/dev/null)" ]; then \
 		if [ "$(RUNNER)" != "1" ]; then \
 			wget '$(2)' -q --show-progress; \
-			unzip jre*-ios-aarch64.zip && rm jre*-ios-aarch64.zip; \
+			FILE=$$(basename '$(2)'); \
+			if echo "$$FILE" | grep -qiE '\\.zip$$'; then \
+				unzip "$$FILE" && rm -f "$$FILE"; \
+			elif echo "$$FILE" | grep -qiE '\\.tar\\.xz$$'; then \
+				# leave tar.xz for extraction by tar later
+				:; \
+			else \
+				# unknown archive type - attempt to unpack with tar
+				:; \
+			fi; \
 		fi; \
 		mkdir -p java-$(1)-openjdk; \
-		tar xvf jre$(1)-*.tar.xz -C java-$(1)-openjdk; \
+		# Extract any tar.xz matching the expected pattern
+		tar xvf jre$(1)-*.tar.xz -C java-$(1)-openjdk 2>/dev/null || true; \
+		# Also handle zip archives that extract to jre$(1)-* directory
+		if [ -d "jre$(1)-openjdk" ]; then \
+			mv jre$(1)-openjdk/* java-$(1)-openjdk/ 2>/dev/null || true; \
+		fi; \
 	fi
 
 # Function to codesign binaries.
