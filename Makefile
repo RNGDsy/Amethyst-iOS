@@ -173,17 +173,13 @@ METHOD_JAVA_UNPACK = \
 			if echo "$$FILE" | grep -qiE '\\.zip$$'; then \
 				unzip "$$FILE" && rm -f "$$FILE"; \
 			elif echo "$$FILE" | grep -qiE '\\.tar\\.xz$$'; then \
-				# leave tar.xz for extraction by tar later \
 				:; \
 			else \
-				# unknown archive type - attempt to unpack with tar
 				:; \
 			fi; \
 		fi; \
 		mkdir -p java-$(1)-openjdk; \
-		# Extract any tar.xz matching the expected pattern
 		tar xvf jre$(1)-*.tar.xz -C java-$(1)-openjdk 2>/dev/null || true; \
-		# Also handle zip archives that extract to jre$(1)-* directory
 		if [ -d "jre$(1)-openjdk" ]; then \
 			mv jre$(1)-openjdk/* java-$(1)-openjdk/ 2>/dev/null || true; \
 		fi; \
@@ -326,7 +322,7 @@ jre: native
 	$(call METHOD_JAVA_UNPACK,17,'https://crystall1ne.dev/cdn/amethyst-ios/jre17-ios-aarch64.zip'); \
 	$(call METHOD_JAVA_UNPACK,21,'https://crystall1ne.dev/cdn/amethyst-ios/jre21-ios-aarch64.zip'); \
 	$(call METHOD_JAVA_UNPACK,25,'https://github.com/Taylen-chud/Amethyst-iOS/releases/download/Jre25/jre25-ios-arm64-20260618-release.tar.xz'); \
-	if [ -f "$(ls jre*.tar.xz)" ]; then rm $(SOURCEDIR)/depends/jre*.tar.xz; fi; \
+	if ls jre*.tar.xz >/dev/null 2>&1; then rm -f jre*.tar.xz; fi; \
 	cd $(SOURCEDIR); \
 	rm -rf $(SOURCEDIR)/depends/java-*-openjdk/{ASSEMBLY_EXCEPTION,bin,include,jre,legal,LICENSE,man,THIRD_PARTY_README,lib/{ct.sym,jspawnhelper,libjsig.dylib,src.zip,tools.jar}}; \
 	$(call METHOD_DIRCHECK,$(OUTPUTDIR)/java_runtimes); \
@@ -335,9 +331,9 @@ jre: native
 	cp -R $(POJAV_JRE21_DIR) $(OUTPUTDIR)/java_runtimes; \
 	cp -R $(POJAV_JRE25_DIR) $(OUTPUTDIR)/java_runtimes; \
 	cp $(WORKINGDIR)/libawt_xawt.dylib $(OUTPUTDIR)/java_runtimes/java-8-openjdk/lib; \
-	cp $(WORKINGDIR)/libawt_xawt.dylib $(OUTPUTDIR)/java_runtimes/java-17-openjdk/lib;
+	cp $(WORKINGDIR)/libawt_xawt.dylib $(OUTPUTDIR)/java_runtimes/java-17-openjdk/lib; \
 	cp $(WORKINGDIR)/libawt_xawt.dylib $(OUTPUTDIR)/java_runtimes/java-21-openjdk/lib; \
-	cp $(WORKINGDIR)/libawt_xawt.dylib $(OUTPUTDIR)/java_runtimes/java-25-openjdk/lib
+	cp $(WORKINGDIR)/libawt_xawt.dylib $(OUTPUTDIR)/java_runtimes/java-25-openjdk/lib; \
 	echo '[Amethyst v$(VERSION)] jre - end'
 
 dep_mg:
