@@ -137,7 +137,11 @@ METHOD_DIRCHECK   = \
 METHOD_CHANGE_PLAT = \
 	if [ '$(1)' != '11' ] && [ '$(1)' != '12' ]; then \
 		vtool -arch arm64 -set-build-version $(1) 14.0 16.0 -replace -output $(2) $(2); \
-		ldid -S -M $(2); \
+		if command -v ldid >/dev/null 2>&1; then \
+			ldid -S -M $(2); \
+		else \
+			printf 'ldid not available; skipping codesign for %s\n' $(2); \
+		fi; \
 	else \
 		vtool -arch arm64 -set-build-version $(1) 1.0 1.0 -replace -output $(2) $(2); \
 	fi \
@@ -189,18 +193,22 @@ ifneq ($(call METHOD_DEPCHECK,cmake --version),1)
 $(error You need to install cmake)
 endif
 
-ifneq ($(call METHOD_DEPCHECK,$(BOOTJDK)/javac -version),1)
-$(error You need to install JDK 8)
-endif
-
+## Check for javac but don't hard-fail; allow native-only builds when missing.
+HAVE_JAVA := $(call METHOD_DEPCHECK,$(BOOTJDK)/javac -version)
+ifeq ($(HAVE_JAVA),1)
+JAVA_VERSION := $(shell $(BOOTJDK)/javac -version &> javaver.txt && cat javaver.txt | cut -b 7-11 && rm -rf javaver.txt)
 ifeq ($(IOS),0)
-ifeq ($(filter 1.8.0,$(shell $(BOOTJDK)/javac -version &> javaver.txt && cat javaver.txt | cut -b 7-11 && rm -rf javaver.txt)),)
-$(error You need to install JDK 8)
+ifeq ($(filter 1.8.0,$(JAVA_VERSION)),)
+$(warning Java version is not 1.8. Some Java features may not work.)
 endif
+endif
+else
+$(warning javac not found. Java build and JRE download will be skipped.)
 endif
 
-ifneq ($(call METHOD_DEPCHECK,ldid),1)
-$(error You need to install ldid)
+HAVE_LDID := $(call METHOD_DEPCHECK,ldid)
+ifeq ($(HAVE_LDID),0)
+$(warning ldid not found. Mach-O platform modifications and codesigning will be skipped.)
 endif
 
 ifneq ($(call METHOD_DEPCHECK,wget --version),1)
@@ -208,8 +216,9 @@ $(error You need to install wget)
 endif
 
 ifeq ($(DETECTPLAT),Linux)
-ifneq ($(call METHOD_DEPCHECK,lld),1)
-$(error You need to install lld)
+HAVE_LLD := $(call METHOD_DEPCHECK,lld)
+ifeq ($(HAVE_LLD),0)
+$(warning lld not found. Linking may fallback to system linker or fail later.)
 endif
 endif
 
@@ -228,11 +237,19 @@ else
 JOBS   ?= $(shell sysctl -n hw.logicalcpu)
 endif
 
+## Only require SDKPATH for packaging/asset targets that need iPhoneOS SDK
+ifneq ($(filter payload package assets dsym,$(MAKECMDGOALS)),)
 ifndef SDKPATH
 $(error You need to specify SDKPATH to the path of iPhoneOS.sdk. The SDK version should be 14.0 or newer.)
 endif
+endif
 
-all: clean native java jre assets payload package dsym
+ALL_TARGETS := clean native assets payload package dsym
+ifeq ($(HAVE_JAVA),1)
+ALL_TARGETS := clean native java jre assets payload package dsym
+endif
+
+all: $(ALL_TARGETS)
 
 help:
 	echo 'Makefile to compile Angel Aura Amethyst'
@@ -308,21 +325,24 @@ jre: native
 dep_mg:
 	echo '[Amethyst v$(VERSION)] dep_mg - start'
 	mkdir -p $(WORKINGDIR)/mobileglues
-	cd $(WORKINGDIR)/mobileglues && cmake \
-		-DMACOS="1" \
-		-DCMAKE_CROSSCOMPILING=true \
-		-DCMAKE_SYSTEM_NAME=Darwin \
-		-DCMAKE_SYSTEM_PROCESSOR=aarch64 \
-		-DCMAKE_OSX_SYSROOT="$(SDKPATH)" \
-		-DCMAKE_OSX_ARCHITECTURES=arm64 \
-		-DCMAKE_OSX_DEPLOYMENT_TARGET=14.0 \
-		-DCMAKE_C_FLAGS="-arch arm64" \
-		$(SOURCEDIR)/Natives/external/MobileGlues/src/main/cpp/
-
-	cmake --build $(WORKINGDIR)/mobileglues --config RelWithDebInfo -j$(JOBS) --target mobileglues
-	cp $(WORKINGDIR)/mobileglues/libmobileglues.dylib $(WORKINGDIR)/libmobileglues.dylib
-	cp $(SOURCEDIR)/Natives/external/MobileGlues/src/main/cpp/libraries/ios/libspirv-cross-c-shared.0.dylib $(WORKINGDIR)/libspirv-cross-c-shared.0.dylib
-	echo '[Amethyst v$(VERSION)] dep_mg - end'
+	if [ -d "$(SOURCEDIR)/Natives/external/MobileGlues/src/main/cpp" ]; then \
+		cd $(WORKINGDIR)/mobileglues && cmake \
+			-DMACOS="1" \
+			-DCMAKE_CROSSCOMPILING=true \
+			-DCMAKE_SYSTEM_NAME=Darwin \
+			-DCMAKE_SYSTEM_PROCESSOR=aarch64 \
+			-DCMAKE_OSX_SYSROOT="$(SDKPATH)" \
+			-DCMAKE_OSX_ARCHITECTURES=arm64 \
+			-DCMAKE_OSX_DEPLOYMENT_TARGET=14.0 \
+			-DCMAKE_C_FLAGS="-arch arm64" \
+			$(SOURCEDIR)/Natives/external/MobileGlues/src/main/cpp/; \
+		cmake --build $(WORKINGDIR)/mobileglues --config RelWithDebInfo -j$(JOBS) --target mobileglues; \
+		cp $(WORKINGDIR)/mobileglues/libmobileglues.dylib $(WORKINGDIR)/libmobileglues.dylib; \
+		cp $(SOURCEDIR)/Natives/external/MobileGlues/src/main/cpp/libraries/ios/libspirv-cross-c-shared.0.dylib $(WORKINGDIR)/libspirv-cross-c-shared.0.dylib; \
+		echo '[Amethyst v$(VERSION)] dep_mg - end'; \
+	else \
+		echo 'MobileGlues source not found; skipping dep_mg step.'; \
+	fi
 
 dep_mobilegl:
 	echo '[Amethyst v$(VERSION)] dep_mobilegl - start'
