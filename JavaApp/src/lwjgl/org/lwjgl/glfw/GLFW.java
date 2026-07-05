@@ -519,8 +519,7 @@ public class GLFW
     public static final ByteBuffer keyDownBuffer = ByteBuffer.allocateDirect(317);
     public static long mainContext = 0;
 
-    private static native void
-static {
+    static {
         try {
             System.load(System.getenv("BUNDLE_PATH") + "/AngelAuraAmethyst");
 } catch (UnsatisfiedLinkError e) {
