@@ -181,16 +181,28 @@ METHOD_JAVA_UNPACK = \
 				exit 1; \
 			fi; \
 			rm -f "$$FILE"; \
+			rm -rf "extracted-$(1)/__MACOSX"; \
 		fi; \
 		mkdir -p java-$(1)-openjdk; \
-		SRC="extracted-$(1)"; \
-		if [ "$$(find "$$SRC" -mindepth 1 -maxdepth 1 -type d | wc -l)" = "1" ] && [ "$$(find "$$SRC" -mindepth 1 -maxdepth 1 | wc -l)" = "1" ]; then \
-			SRC="$$(find "$$SRC" -mindepth 1 -maxdepth 1 -type d)"; \
+		SRC=""; \
+		RELEASE_FILE="$$(find "extracted-$(1)" -type f -name 'release' -print -quit 2>/dev/null)"; \
+		if [ -n "$$RELEASE_FILE" ]; then \
+			SRC="$$(dirname "$$RELEASE_FILE")"; \
+		else \
+			JAVA_BIN="$$(find "extracted-$(1)" -type f -path '*/bin/java' -print -quit 2>/dev/null)"; \
+			if [ -n "$$JAVA_BIN" ]; then \
+				SRC="$$(dirname "$$(dirname "$$JAVA_BIN")")"; \
+			fi; \
 		fi; \
-		cp -R "$$SRC"/* java-$(1)-openjdk/; \
+		if [ -z "$$SRC" ] || [ ! -d "$$SRC" ]; then \
+			echo "ERROR: could not locate JDK root inside archive for JRE $(1). Extracted layout:"; \
+			find "extracted-$(1)" -maxdepth 3; \
+			exit 1; \
+		fi; \
+		cp -R "$$SRC"/. java-$(1)-openjdk/; \
 		rm -rf "extracted-$(1)"; \
-		if [ ! -f "java-$(1)-openjdk/release" ] && [ ! -d "java-$(1)-openjdk/bin" ]; then \
-			echo "WARNING: JRE $(1) does not look correctly unpacked (no release file or bin dir in java-$(1)-openjdk). Check the archive layout."; \
+		if [ ! -f "java-$(1)-openjdk/release" ]; then \
+			echo "WARNING: JRE $(1) still missing release file after unpack from $$SRC"; \
 		fi; \
 	fi
 
