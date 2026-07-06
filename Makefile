@@ -166,22 +166,31 @@ METHOD_PACKAGE = \
 # Function to download and unpack Java runtimes.
 METHOD_JAVA_UNPACK = \
 	cd $(SOURCEDIR)/depends; \
-	if [ ! -f "java-$(1)-openjdk/release" ] && [ -z "$$(ls jre$(1)-* 2>/dev/null)" ]; then \
+	if [ ! -f "java-$(1)-openjdk/release" ]; then \
+		rm -rf "extracted-$(1)"; \
+		mkdir -p "extracted-$(1)"; \
 		if [ "$(RUNNER)" != "1" ]; then \
-			wget '$(2)' -q --show-progress; \
 			FILE=$$(basename '$(2)'); \
-			if echo "$$FILE" | grep -qiE '\\.zip$$'; then \
-				unzip "$$FILE" && rm -f "$$FILE"; \
-			elif echo "$$FILE" | grep -qiE '\\.tar\\.xz$$'; then \
-				:; \
+			wget '$(2)' -q --show-progress -O "$$FILE"; \
+			if echo "$$FILE" | grep -qiE '\.zip$$'; then \
+				unzip -q "$$FILE" -d "extracted-$(1)"; \
+			elif echo "$$FILE" | grep -qiE '\.tar\.xz$$'; then \
+				tar xf "$$FILE" -C "extracted-$(1)"; \
 			else \
-				:; \
+				echo "ERROR: unrecognized archive type for JRE $(1): $$FILE"; \
+				exit 1; \
 			fi; \
+			rm -f "$$FILE"; \
 		fi; \
 		mkdir -p java-$(1)-openjdk; \
-		tar xvf jre$(1)-*.tar.xz -C java-$(1)-openjdk 2>/dev/null || true; \
-		if [ -d "jre$(1)-openjdk" ]; then \
-			mv jre$(1)-openjdk/* java-$(1)-openjdk/ 2>/dev/null || true; \
+		SRC="extracted-$(1)"; \
+		if [ "$$(find "$$SRC" -mindepth 1 -maxdepth 1 -type d | wc -l)" = "1" ] && [ "$$(find "$$SRC" -mindepth 1 -maxdepth 1 | wc -l)" = "1" ]; then \
+			SRC="$$(find "$$SRC" -mindepth 1 -maxdepth 1 -type d)"; \
+		fi; \
+		cp -R "$$SRC"/* java-$(1)-openjdk/; \
+		rm -rf "extracted-$(1)"; \
+		if [ ! -f "java-$(1)-openjdk/release" ] && [ ! -d "java-$(1)-openjdk/bin" ]; then \
+			echo "WARNING: JRE $(1) does not look correctly unpacked (no release file or bin dir in java-$(1)-openjdk). Check the archive layout."; \
 		fi; \
 	fi
 
@@ -322,7 +331,6 @@ jre: native
 	$(call METHOD_JAVA_UNPACK,17,'https://crystall1ne.dev/cdn/amethyst-ios/jre17-ios-aarch64.zip'); \
 	$(call METHOD_JAVA_UNPACK,21,'https://crystall1ne.dev/cdn/amethyst-ios/jre21-ios-aarch64.zip'); \
 	$(call METHOD_JAVA_UNPACK,25,'https://github.com/Taylen-chud/Amethyst-iOS/releases/download/Jre25/jre25-ios-arm64-20260618-release.tar.xz'); \
-	if ls jre*.tar.xz >/dev/null 2>&1; then rm -f jre*.tar.xz; fi; \
 	cd $(SOURCEDIR); \
 	rm -rf $(SOURCEDIR)/depends/java-*-openjdk/{ASSEMBLY_EXCEPTION,bin,include,jre,legal,LICENSE,man,THIRD_PARTY_README,lib/{ct.sym,jspawnhelper,libjsig.dylib,src.zip,tools.jar}}; \
 	$(call METHOD_DIRCHECK,$(OUTPUTDIR)/java_runtimes); \
