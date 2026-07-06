@@ -182,6 +182,17 @@ METHOD_JAVA_UNPACK = \
 			fi; \
 			rm -f "$$FILE"; \
 			rm -rf "extracted-$(1)/__MACOSX"; \
+			INNER_ARCHIVE="$$(find "extracted-$(1)" -type f \( -name '*.tar.xz' -o -name '*.tar.gz' -o -name '*.zip' \) -print -quit 2>/dev/null)"; \
+			while [ -n "$$INNER_ARCHIVE" ]; do \
+				INNER_DIR="$$(dirname "$$INNER_ARCHIVE")"; \
+				case "$$INNER_ARCHIVE" in \
+					*.tar.xz|*.tar.gz) tar xf "$$INNER_ARCHIVE" -C "$$INNER_DIR" ;; \
+					*.zip) unzip -q "$$INNER_ARCHIVE" -d "$$INNER_DIR" ;; \
+				esac; \
+				rm -f "$$INNER_ARCHIVE"; \
+				rm -rf "extracted-$(1)/__MACOSX"; \
+				INNER_ARCHIVE="$$(find "extracted-$(1)" -type f \( -name '*.tar.xz' -o -name '*.tar.gz' -o -name '*.zip' \) -print -quit 2>/dev/null)"; \
+			done; \
 		fi; \
 		mkdir -p java-$(1)-openjdk; \
 		SRC=""; \
