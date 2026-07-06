@@ -460,6 +460,10 @@ payload: native dep_mg dep_mobilegl java jre assets
 	cp $(WORKINGDIR)/*.dylib $(WORKINGDIR)/AngelAuraAmethyst.app/Frameworks/ || exit 1
 	cp -R $(SOURCEDIR)/JavaApp/libs/others/* $(WORKINGDIR)/AngelAuraAmethyst.app/libs/ || exit 1
 	cp $(SOURCEDIR)/JavaApp/build/*.jar $(WORKINGDIR)/AngelAuraAmethyst.app/libs/ || exit 1
+	mkdir -p $(WORKINGDIR)/AngelAuraAmethyst.app/libs/lwjgl-3.3.3 || exit 1
+	mkdir -p $(WORKINGDIR)/AngelAuraAmethyst.app/libs/lwjgl-3.4.1 || exit 1
+	cp -R $(SOURCEDIR)/JavaApp/libs/lwjgl-3.3.3/* $(WORKINGDIR)/AngelAuraAmethyst.app/libs/lwjgl-3.3.3/ || exit 1
+	cp -R $(SOURCEDIR)/JavaApp/libs/lwjgl-3.4.1/* $(WORKINGDIR)/AngelAuraAmethyst.app/libs/lwjgl-3.4.1/ || exit 1
 	cp -R $(SOURCEDIR)/JavaApp/libs/caciocavallo/* $(WORKINGDIR)/AngelAuraAmethyst.app/libs_caciocavallo || exit 1
 	cp -R $(SOURCEDIR)/JavaApp/libs/caciocavallo17/* $(WORKINGDIR)/AngelAuraAmethyst.app/libs_caciocavallo17 || exit 1
 	$(call METHOD_DIRCHECK,$(OUTPUTDIR)/Payload)
