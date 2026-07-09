@@ -209,10 +209,40 @@ void registerOpenHandler(JNIEnv *env) {
 
 // JNI_OnLoad
 void JNI_OnLoadGLFW() {
-    vmGlfwClass = (*runtimeJNIEnvPtr)->NewGlobalRef(runtimeJNIEnvPtr, (*runtimeJNIEnvPtr)->FindClass(runtimeJNIEnvPtr, "org/lwjgl/glfw/GLFW"));
+    jclass foundClass = (*runtimeJNIEnvPtr)->FindClass(runtimeJNIEnvPtr, "org/lwjgl/glfw/GLFW");
+    if (foundClass == NULL || (*runtimeJNIEnvPtr)->ExceptionCheck(runtimeJNIEnvPtr)) {
+        fprintf(stderr, "[JNI_OnLoadGLFW] FindClass(org/lwjgl/glfw/GLFW) failed (class likely still mid-<clinit> at this reentrant point) - clearing exception and bailing out safely instead of proceeding with a NULL/invalid jclass\n");
+        if ((*runtimeJNIEnvPtr)->ExceptionCheck(runtimeJNIEnvPtr)) {
+            (*runtimeJNIEnvPtr)->ExceptionClear(runtimeJNIEnvPtr);
+        }
+        return;
+    }
+    vmGlfwClass = (*runtimeJNIEnvPtr)->NewGlobalRef(runtimeJNIEnvPtr, foundClass);
+    if (vmGlfwClass == NULL) {
+        fprintf(stderr, "[JNI_OnLoadGLFW] NewGlobalRef failed - bailing out safely\n");
+        return;
+    }
     method_internalWindowSizeChanged = (*runtimeJNIEnvPtr)->GetStaticMethodID(runtimeJNIEnvPtr, vmGlfwClass, "internalWindowSizeChanged", "(JII)V");
+    if (method_internalWindowSizeChanged == NULL || (*runtimeJNIEnvPtr)->ExceptionCheck(runtimeJNIEnvPtr)) {
+        fprintf(stderr, "[JNI_OnLoadGLFW] GetStaticMethodID(internalWindowSizeChanged) failed - clearing exception and bailing out safely\n");
+        if ((*runtimeJNIEnvPtr)->ExceptionCheck(runtimeJNIEnvPtr)) {
+            (*runtimeJNIEnvPtr)->ExceptionClear(runtimeJNIEnvPtr);
+        }
+        return;
+    }
     jfieldID field_keyDownBuffer = (*runtimeJNIEnvPtr)->GetStaticFieldID(runtimeJNIEnvPtr, vmGlfwClass, "keyDownBuffer", "Ljava/nio/ByteBuffer;");
+    if (field_keyDownBuffer == NULL || (*runtimeJNIEnvPtr)->ExceptionCheck(runtimeJNIEnvPtr)) {
+        fprintf(stderr, "[JNI_OnLoadGLFW] GetStaticFieldID(keyDownBuffer) failed - clearing exception and bailing out safely\n");
+        if ((*runtimeJNIEnvPtr)->ExceptionCheck(runtimeJNIEnvPtr)) {
+            (*runtimeJNIEnvPtr)->ExceptionClear(runtimeJNIEnvPtr);
+        }
+        return;
+    }
     jobject keyDownBufferJ = (*runtimeJNIEnvPtr)->GetStaticObjectField(runtimeJNIEnvPtr, vmGlfwClass, field_keyDownBuffer);
+    if (keyDownBufferJ == NULL) {
+        fprintf(stderr, "[JNI_OnLoadGLFW] keyDownBuffer field read as NULL (static initializer likely hasn't reached its assignment yet) - bailing out safely\n");
+        return;
+    }
     keyDownBuffer = (*runtimeJNIEnvPtr)->GetDirectBufferAddress(runtimeJNIEnvPtr, keyDownBufferJ);
 }
 
@@ -258,6 +288,30 @@ ADD_CALLBACK_WWIN(WindowSize)
 void handleFramebufferSizeJava(void* window, int w, int h) {
     if(GLFW_invoke_CursorEnter)GLFW_invoke_CursorEnter(window, 1);
     if(GLFW_invoke_WindowPos)GLFW_invoke_WindowPos(window, 0, 0);
+    if (vmGlfwClass == NULL || method_internalWindowSizeChanged == NULL) {
+        // eager lookup in JNI_OnLoadGLFW failed (class was mid-<clinit> at the time);
+        // retry now - by this point (an actual window resize callback firing) the
+        // class is guaranteed to be fully initialized.
+        if (vmGlfwClass == NULL) {
+            jclass foundClass = (*runtimeJNIEnvPtr)->FindClass(runtimeJNIEnvPtr, "org/lwjgl/glfw/GLFW");
+            if (foundClass != NULL && !(*runtimeJNIEnvPtr)->ExceptionCheck(runtimeJNIEnvPtr)) {
+                vmGlfwClass = (*runtimeJNIEnvPtr)->NewGlobalRef(runtimeJNIEnvPtr, foundClass);
+            } else if ((*runtimeJNIEnvPtr)->ExceptionCheck(runtimeJNIEnvPtr)) {
+                (*runtimeJNIEnvPtr)->ExceptionClear(runtimeJNIEnvPtr);
+            }
+        }
+        if (vmGlfwClass != NULL && method_internalWindowSizeChanged == NULL) {
+            method_internalWindowSizeChanged = (*runtimeJNIEnvPtr)->GetStaticMethodID(runtimeJNIEnvPtr, vmGlfwClass, "internalWindowSizeChanged", "(JII)V");
+            if ((*runtimeJNIEnvPtr)->ExceptionCheck(runtimeJNIEnvPtr)) {
+                (*runtimeJNIEnvPtr)->ExceptionClear(runtimeJNIEnvPtr);
+                method_internalWindowSizeChanged = NULL;
+            }
+        }
+        if (vmGlfwClass == NULL || method_internalWindowSizeChanged == NULL) {
+            fprintf(stderr, "[handleFramebufferSizeJava] lazy retry of GLFW class/method lookup still failed - skipping this callback\n");
+            return;
+        }
+    }
     (*runtimeJNIEnvPtr)->CallStaticVoidMethod(runtimeJNIEnvPtr, vmGlfwClass, method_internalWindowSizeChanged, (long)window, w, h);
 }
 
@@ -530,6 +584,33 @@ char getKeyModifiers(int key, int action) {
 
 void CallbackBridge_nativeSendKey(int key, int scancode, int action, int mods) {
     if (GLFW_invoke_Key && isInputReady) {
+        if (keyDownBuffer == NULL) {
+            // eager lookup in JNI_OnLoadGLFW failed - retry now, the class is
+            // guaranteed fully initialized by the time actual key events fire.
+            if (vmGlfwClass == NULL) {
+                jclass foundClass = (*runtimeJNIEnvPtr)->FindClass(runtimeJNIEnvPtr, "org/lwjgl/glfw/GLFW");
+                if (foundClass != NULL && !(*runtimeJNIEnvPtr)->ExceptionCheck(runtimeJNIEnvPtr)) {
+                    vmGlfwClass = (*runtimeJNIEnvPtr)->NewGlobalRef(runtimeJNIEnvPtr, foundClass);
+                } else if ((*runtimeJNIEnvPtr)->ExceptionCheck(runtimeJNIEnvPtr)) {
+                    (*runtimeJNIEnvPtr)->ExceptionClear(runtimeJNIEnvPtr);
+                }
+            }
+            if (vmGlfwClass != NULL) {
+                jfieldID field_keyDownBuffer = (*runtimeJNIEnvPtr)->GetStaticFieldID(runtimeJNIEnvPtr, vmGlfwClass, "keyDownBuffer", "Ljava/nio/ByteBuffer;");
+                if (field_keyDownBuffer != NULL && !(*runtimeJNIEnvPtr)->ExceptionCheck(runtimeJNIEnvPtr)) {
+                    jobject keyDownBufferJ = (*runtimeJNIEnvPtr)->GetStaticObjectField(runtimeJNIEnvPtr, vmGlfwClass, field_keyDownBuffer);
+                    if (keyDownBufferJ != NULL) {
+                        keyDownBuffer = (*runtimeJNIEnvPtr)->GetDirectBufferAddress(runtimeJNIEnvPtr, keyDownBufferJ);
+                    }
+                } else if ((*runtimeJNIEnvPtr)->ExceptionCheck(runtimeJNIEnvPtr)) {
+                    (*runtimeJNIEnvPtr)->ExceptionClear(runtimeJNIEnvPtr);
+                }
+            }
+            if (keyDownBuffer == NULL) {
+                fprintf(stderr, "[CallbackBridge_nativeSendKey] lazy retry of keyDownBuffer lookup still failed - skipping this key event\n");
+                return;
+            }
+        }
         keyDownBuffer[MAX(0, key-31)]=(jbyte)action;
         if (mods == 0) {
             mods = getKeyModifiers(key, action);
